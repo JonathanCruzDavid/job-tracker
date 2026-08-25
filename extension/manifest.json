@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Job Tracker Auto-Import",
+  "version": "1.0",
+  "description": "Captures job postings from LinkedIn and Indeed into your local Job Application Tracker as you browse — no clicking required.",
+  "permissions": [],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://*.linkedin.com/*",
+    "https://*.indeed.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.linkedin.com/jobs/*", "https://*.indeed.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
