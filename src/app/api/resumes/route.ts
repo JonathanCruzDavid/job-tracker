@@ -12,6 +12,10 @@ const ACCEPTED_TYPES = [
 export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file");
+  // Defaults to true so the original "Upload master resume" button (which
+  // never sent this field) keeps its old behavior unchanged. The "Add
+  // another resume version" uploader explicitly sends "false".
+  const asMaster = formData.get("asMaster") !== "false";
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -33,13 +37,15 @@ export async function POST(request: Request) {
     warning = "Uploaded, but couldn't read the text inside the file.";
   }
 
-  db.prepare("update resumes set is_master = 0 where is_master = 1").run();
+  if (asMaster) {
+    db.prepare("update resumes set is_master = 0 where is_master = 1").run();
+  }
 
   const id = randomUUID();
   db.prepare(
-    `insert into resumes (id, is_master, file_name, storage_path, mime_type, extracted_text)
-     values (?, 1, ?, ?, ?, ?)`,
-  ).run(id, file.name, storagePath, file.type, extractedText);
+    `insert into resumes (id, is_master, file_name, storage_path, mime_type, extracted_text, created_at)
+     values (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))`,
+  ).run(id, asMaster ? 1 : 0, file.name, storagePath, file.type, extractedText);
 
   return NextResponse.json({ id, warning });
 }

@@ -115,6 +115,25 @@
       description = findLargestTextBlock() || description || meta("og:description");
     }
 
+    // Best-effort for arbitrary company career sites (Greenhouse, custom
+    // domains, etc.) where there's no known selector for "the company
+    // name" the way there is for LinkedIn/Indeed. og:site_name is often
+    // the company/brand; failing that, guess from <title>'s "Job Title -
+    // Company" / "Company - Job Title" convention. Both are genuinely
+    // fuzzy — worth double-checking in the app afterward.
+    if (!company) {
+      company = meta("og:site_name");
+    }
+    if (!company) {
+      const parts = document.title
+        .split(/[-|·]/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (parts.length > 1) {
+        company = parts.find((p) => p.toLowerCase() !== title.toLowerCase()) || parts[parts.length - 1];
+      }
+    }
+
     return {
       title,
       company,
@@ -177,13 +196,114 @@
           typeof response.score === "number" ? ` — score ${response.score}/100` : "";
         const prefix = response.alreadyImported ? "Already tracked" : "Imported";
         showToast(`✓ ${prefix} in Job Tracker${scoreText}`);
+
+        if (response.scamVerdict === "likely_scam") {
+          showToast(`⚠ Job Tracker: this posting matches common scam patterns — check it before applying`, true);
+        } else if (response.scamVerdict === "uncertain") {
+          showToast(`⚠ Job Tracker: this posting has some red flags — worth a closer look`, true);
+        }
       } else if (response?.error) {
         showToast(`Job Tracker: ${response.error}`, true);
       }
     });
   }
 
+  // --- Track application button ---
+  function injectTrackApplicationButton() {
+    if (document.getElementById("job-tracker-mark-applied-btn")) return;
+
+    // Runs on every site now (custom ATS domains like careers.company.com
+    // can't be enumerated in advance), so the trigger has to be specific to
+    // job applications rather than "any form." A resume/file-upload field is
+    // a strong signal — rare on login/signup/checkout pages, near-universal
+    // on job applications. Without one (e.g. a multi-step form whose
+    // personal-info page comes before the upload step), fall back to
+    // requiring a substantial number of fields, since a real application
+    // page has far more than a typical login or newsletter form.
+    const hasFileUpload = !!document.querySelector('input[type="file"]');
+    const fieldCount = document.querySelectorAll("input, textarea, select").length;
+    if (!hasFileUpload && fieldCount < 8) return;
+
+    const markBtn = document.createElement("button");
+    markBtn.id = "job-tracker-mark-applied-btn";
+    markBtn.textContent = "📋 Track this application";
+    markBtn.style.cssText = `
+      position: fixed; bottom: 20px; left: 20px; z-index: 999999;
+      background: #111827; color: white; border: none;
+      padding: 10px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
+      font-family: system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    `;
+    markBtn.addEventListener("click", () => {
+      const data = extract();
+      if (!data.title || !data.company) {
+        showToast(
+          `Job Tracker: couldn't confidently read the job title/company on this page`,
+          true,
+        );
+        return;
+      }
+      markBtn.disabled = true;
+      markBtn.textContent = "Tracking...";
+      chrome.runtime.sendMessage({ type: "TRACK_APPLICATION", payload: data }, (response) => {
+        markBtn.disabled = false;
+        markBtn.textContent = "📋 Track this application";
+        if (chrome.runtime.lastError) {
+          showToast(`Job Tracker: ${chrome.runtime.lastError.message}`, true);
+          return;
+        }
+        if (response?.ok) {
+          showToast(
+            `✓ Job Tracker: saved "${data.title}" @ ${data.company} — it'll move to Applied once a confirmation email is found`,
+          );
+        } else {
+          showToast(`Job Tracker: ${response?.error ?? "could not track this application"}`, true);
+        }
+      });
+    });
+    document.body.appendChild(markBtn);
+  }
+
+  function injectLinkedInSessionButton() {
+    if (!location.hostname.endsWith("linkedin.com")) return;
+    if (document.getElementById("job-tracker-linkedin-session-btn")) return;
+
+    const btn = document.createElement("button");
+    btn.id = "job-tracker-linkedin-session-btn";
+    btn.textContent = "🔑 Import LinkedIn session";
+    btn.title = "Lets the job search agent search LinkedIn using this logged-in session";
+    btn.style.cssText = `
+      position: fixed; bottom: 20px; left: 280px; z-index: 999999;
+      background: #111827; color: white; border: none;
+      padding: 10px 16px; border-radius: 8px; font-size: 14px; cursor: pointer;
+      font-family: system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    `;
+    btn.addEventListener("click", () => {
+      btn.disabled = true;
+      btn.textContent = "Importing...";
+      chrome.runtime.sendMessage({ type: "IMPORT_LINKEDIN_SESSION" }, (response) => {
+        btn.disabled = false;
+        btn.textContent = "🔑 Import LinkedIn session";
+        if (chrome.runtime.lastError) {
+          showToast(`Job Tracker: ${chrome.runtime.lastError.message}`, true);
+          return;
+        }
+        if (response?.ok) {
+          showToast("✓ Job Tracker: LinkedIn session imported — the search agent can use it now");
+        } else {
+          showToast(`Job Tracker: ${response?.error ?? "could not import LinkedIn session"}`, true);
+        }
+      });
+    });
+    document.body.appendChild(btn);
+  }
+
   console.log("[Job Tracker] content script loaded on", location.hostname);
   tryImport();
-  setInterval(tryImport, 1500);
+  injectTrackApplicationButton();
+  injectLinkedInSessionButton();
+  setInterval(() => {
+    tryImport();
+    injectTrackApplicationButton();
+    injectLinkedInSessionButton();
+  }, 1500);
 })();

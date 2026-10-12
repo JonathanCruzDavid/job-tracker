@@ -42,7 +42,7 @@ export default function InlineField({
       onBlur={handleBlur}
       placeholder={placeholder}
       disabled={saving}
-      className="w-full min-w-[140px] rounded-md border border-transparent bg-transparent px-2 py-1 text-sm hover:border-black/10 focus:border-black/20 focus:outline-none disabled:opacity-50 dark:hover:border-white/20 dark:focus:border-white/30"
+      className="w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 py-1 text-sm hover:border-black/10 focus:border-black/20 focus:outline-none disabled:opacity-50 dark:hover:border-white/20 dark:focus:border-white/30"
     />
   );
 }

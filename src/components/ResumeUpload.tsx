@@ -8,7 +8,13 @@ const ACCEPTED_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
-export default function ResumeUpload({ hasMaster }: { hasMaster: boolean }) {
+export default function ResumeUpload({
+  hasMaster,
+  asMaster = true,
+}: {
+  hasMaster: boolean;
+  asMaster?: boolean;
+}) {
   const router = useRouter();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +36,7 @@ export default function ResumeUpload({ hasMaster }: { hasMaster: boolean }) {
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("asMaster", String(asMaster));
 
     const res = await fetch("/api/resumes", { method: "POST", body: formData });
     const body = await res.json().catch(() => ({}));
@@ -45,13 +52,19 @@ export default function ResumeUpload({ hasMaster }: { hasMaster: boolean }) {
     if (body.warning) {
       setError(body.warning);
     } else {
-      setSuccess(`Uploaded "${file.name}" — now your master resume.`);
+      setSuccess(
+        asMaster ? `Uploaded "${file.name}" — now your master resume.` : `Uploaded "${file.name}".`,
+      );
     }
 
     router.refresh();
   }
 
-  const label = hasMaster ? "Replace master resume (PDF or DOCX)" : "Upload master resume (PDF or DOCX)";
+  const label = !asMaster
+    ? "Add another resume version (PDF or DOCX)"
+    : hasMaster
+      ? "Replace master resume (PDF or DOCX)"
+      : "Upload master resume (PDF or DOCX)";
 
   return (
     <div>
@@ -65,7 +78,7 @@ export default function ResumeUpload({ hasMaster }: { hasMaster: boolean }) {
           className="hidden"
         />
       </label>
-      {hasMaster && !error && !success && (
+      {asMaster && hasMaster && !error && !success && (
         <p className="mt-1 text-xs text-black/50 dark:text-white/50">
           Uploading a new file replaces your current master resume.
         </p>

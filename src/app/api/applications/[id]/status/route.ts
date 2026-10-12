@@ -1,6 +1,6 @@
-import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { setApplicationStatus } from "@/lib/applications/statusTransitions";
 
 export async function POST(
   request: Request,
@@ -14,6 +14,17 @@ export async function POST(
     return NextResponse.json({ error: "status is required" }, { status: 400 });
   }
 
+  // "Applied" can only be set from a confirmed email (see
+  // /api/gmail/scan-applications/confirm, which writes directly and
+  // bypasses this route) — never manually. Every other status change still
+  // goes through here normally.
+  if (status === "applied") {
+    return NextResponse.json(
+      { error: "Applied can only be confirmed from a real email — use Check Gmail for missed applications." },
+      { status: 400 },
+    );
+  }
+
   const current = db
     .prepare("select status from applications where id = ?")
     .get(id) as { status: string } | undefined;
@@ -22,15 +33,7 @@ export async function POST(
     return NextResponse.json({ error: "Application not found" }, { status: 404 });
   }
 
-  db.prepare("update applications set status = ?, updated_at = datetime('now') where id = ?").run(
-    status,
-    id,
-  );
-
-  db.prepare(
-    `insert into application_events (id, application_id, event_type, from_status, to_status)
-     values (?, ?, 'status_change', ?, ?)`,
-  ).run(randomUUID(), id, current.status, status);
+  setApplicationStatus(id, current.status, status);
 
   return NextResponse.json({ ok: true });
 }

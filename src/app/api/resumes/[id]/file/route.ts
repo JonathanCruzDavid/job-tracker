@@ -3,10 +3,11 @@ import { db } from "@/lib/db";
 import { readResumeFile } from "@/lib/resumeStorage";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: RouteContext<"/api/resumes/[id]/file">,
 ) {
   const { id } = await params;
+  const inline = new URL(request.url).searchParams.get("disposition") === "inline";
 
   const resume = db
     .prepare("select file_name, storage_path, mime_type from resumes where id = ?")
@@ -27,7 +28,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": resume.mime_type,
-      "Content-Disposition": `attachment; filename="${resume.file_name.replace(/"/g, "")}"`,
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${resume.file_name.replace(/"/g, "")}"`,
     },
   });
 }

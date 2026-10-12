@@ -18,6 +18,11 @@ const JobMatchSchema = z.object({
   summary: z
     .string()
     .describe("2-3 sentence plain-English explanation of the score, written for the candidate"),
+  is_contract_or_staffing: z
+    .boolean()
+    .describe(
+      "True if this is contract, contract-to-hire, temp, or staffing-agency/recruiting-firm placement work rather than a direct full-time role at the actual hiring company. Strong signals: the posting describes itself as being on behalf of 'our client' (the poster is a staffing/recruiting firm, not the employer), or mentions W2 contract, C2C, 1099, or contract-to-hire. Being time-limited alone doesn't count (e.g. a normal internship isn't this) — this is specifically about non-FTE staffing/placement arrangements.",
+    ),
 });
 
 export type JobMatchResult = z.infer<typeof JobMatchSchema>;
@@ -32,7 +37,11 @@ Do not fabricate, infer beyond reasonable evidence, or embellish the candidate's
 For improvement_tips, suggest how the candidate could better PRESENT experience they already
 have for this specific posting (what to emphasize, reorder, or phrase differently) — not
 skills to go learn or credentials to acquire. If the resume is already well-aligned, return
-an empty array rather than inventing filler advice.`;
+an empty array rather than inventing filler advice.
+
+Also decide is_contract_or_staffing: whether this is contract/staffing-agency placement work
+rather than a direct full-time role at the actual hiring company. Look for phrasing like "our
+client is seeking," "on behalf of our client," W2 contract, C2C, 1099, or contract-to-hire.`;
 
 export async function scoreMatch(params: {
   resumeText: string;

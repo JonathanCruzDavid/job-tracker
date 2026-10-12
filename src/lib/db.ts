@@ -18,7 +18,7 @@ create table if not exists resumes (
   storage_path text,
   mime_type text not null,
   extracted_text text,
-  created_at text not null default (datetime('now'))
+  created_at text not null default (datetime('now', 'localtime'))
 );
 create unique index if not exists resumes_one_master_idx on resumes(is_master) where is_master = 1;
 
@@ -36,7 +36,7 @@ create table if not exists job_postings (
   salary_max integer,
   posted_at text,
   raw_json text,
-  created_at text not null default (datetime('now'))
+  created_at text not null default (datetime('now', 'localtime'))
 );
 create unique index if not exists job_postings_dedup_idx on job_postings(source, external_id) where external_id is not null;
 
@@ -49,8 +49,9 @@ create table if not exists job_matches (
   gaps text not null default '[]',
   improvement_tips text not null default '[]',
   summary text,
+  is_contract integer not null default 0,
   status text not null default 'new' check (status in ('new','saved','dismissed')),
-  created_at text not null default (datetime('now')),
+  created_at text not null default (datetime('now', 'localtime')),
   unique (job_posting_id, resume_id)
 );
 create index if not exists job_matches_status_score_idx on job_matches(status, score desc);
@@ -63,8 +64,8 @@ create table if not exists applications (
   applied_at text,
   interview_stage text,
   notes text,
-  created_at text not null default (datetime('now')),
-  updated_at text not null default (datetime('now'))
+  created_at text not null default (datetime('now', 'localtime')),
+  updated_at text not null default (datetime('now', 'localtime'))
 );
 create index if not exists applications_status_idx on applications(status);
 
@@ -75,13 +76,49 @@ create table if not exists application_events (
   from_status text,
   to_status text,
   note text,
-  created_at text not null default (datetime('now'))
+  created_at text not null default (datetime('now', 'localtime'))
 );
 create index if not exists application_events_application_id_idx on application_events(application_id, created_at desc);
 
-create table if not exists dismissed_bookmarks (
-  url text primary key,
-  created_at text not null default (datetime('now'))
+create table if not exists gmail_connection (
+  id integer primary key check (id = 1),
+  refresh_token text not null,
+  connected_email text,
+  connected_at text not null default (datetime('now', 'localtime'))
+);
+
+create table if not exists gmail_email_reviews (
+  email_id text not null,
+  application_id text not null references applications(id) on delete cascade,
+  match_confidence text not null,
+  signal text not null,
+  summary text not null,
+  subject text not null,
+  from_address text not null,
+  email_date text not null,
+  snippet text not null,
+  dismissed integer not null default 0,
+  created_at text not null default (datetime('now', 'localtime')),
+  primary key (email_id, application_id)
+);
+
+create table if not exists browser_sessions (
+  site text primary key,
+  cookies_json text not null,
+  captured_at text not null default (datetime('now', 'localtime'))
+);
+
+create table if not exists gmail_application_candidates (
+  email_id text primary key,
+  subject text not null,
+  from_address text not null,
+  email_date text not null,
+  snippet text not null,
+  extracted_company text,
+  extracted_title text,
+  is_application integer not null,
+  status text not null default 'pending' check (status in ('pending', 'confirmed', 'dismissed')),
+  created_at text not null default (datetime('now', 'localtime'))
 );
 `;
 
@@ -106,6 +143,13 @@ ensureColumn("applications", "interview_stage", "text");
 ensureColumn("job_postings", "source_site", "text");
 ensureColumn("job_matches", "improvement_tips", "text not null default '[]'");
 ensureColumn("application_events", "resume_id", "text references resumes(id) on delete set null");
+ensureColumn("job_postings", "scam_verdict", "text");
+ensureColumn("job_postings", "scam_risk_score", "integer");
+ensureColumn("job_postings", "scam_red_flags", "text");
+ensureColumn("job_postings", "scam_reasoning", "text");
+ensureColumn("gmail_connection", "last_checked_at", "text");
+ensureColumn("gmail_application_candidates", "extracted_outcome", "text");
+ensureColumn("job_matches", "is_contract", "integer not null default 0");
 
 db.exec(`
   update application_events

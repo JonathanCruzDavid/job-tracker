@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Job Application Tracker
 
-## Getting Started
+A local-first job application tracker built with Next.js and SQLite. It exists to replace a spreadsheet: one place to see every application, its status, and how long it's been waiting for a response — with Gmail doing most of the data entry for you.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Applications dashboard** (`/applications`) — every application in one table: role, company, status, applied date, time to hear back, and a "ghosted" flag for anything stuck with no response. Filter by status, and status counts are shown on each filter pill.
+- **Gmail auto-sync** — click "Refresh now" and it scans your inbox for:
+  - New applications (confirmation emails), which get added automatically.
+  - Replies to applications you're already tracking (rejections, interview requests, offers), which update that application's status automatically.
+  - Anything the AI can't confidently classify is left as an "unclear" finding for you to review by hand, instead of guessing.
+- **AI-tailored resumes** — generate a resume tailored to a specific job posting (via Claude), preview it as a PDF, iterate on it in a chat-style review, and save it.
+- **Resume library** (`/resumes`) — upload a master resume plus as many additional versions as you want (e.g. a Software Engineer vs. Data Analyst variant), each with an inline PDF preview and download link.
+- **Scam/legitimacy check** — flags job postings that match common scam patterns before you apply.
+- **Browser extension** (`extension/`) — while browsing LinkedIn or Indeed, captures postings into the tracker automatically, and adds a "Track this application" button on real application pages (detected by a resume upload field) to save one with a single click.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Requirements:** Node.js, and a Google Cloud OAuth client if you want Gmail sync.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Copy `.env.local.example` to `.env.local` and fill in:
+   - `ANTHROPIC_API_KEY` — required for resume tailoring, scam checks, and Gmail email classification.
+   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` — required for Gmail auto-sync. Create a Web application OAuth client in Google Cloud with the Gmail API enabled; the redirect URI must match `http://localhost:3000/api/gmail/callback`.
+3. Run the dev server:
+   ```bash
+   npm run dev
+   ```
+4. Open [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+Data is stored locally in a SQLite database and uploaded resume files under `data/` — neither is committed to this repo (see `.gitignore`).
 
-To learn more about Next.js, take a look at the following resources:
+### Browser extension
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Go to `chrome://extensions`, enable Developer mode.
+2. Click "Load unpacked" and select the `extension/` folder.
+3. The extension talks to the tracker at `http://localhost:3000`, so the dev server needs to be running for it to work.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Tech stack
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Next.js 16 (App Router, Turbopack), TypeScript, Tailwind CSS v4, SQLite (`node:sqlite`), the Anthropic SDK (Claude), and the Gmail API.

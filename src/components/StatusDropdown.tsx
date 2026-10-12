@@ -36,10 +36,14 @@ export default function StatusDropdown({
       value={status}
       onChange={handleChange}
       disabled={updating}
-      className="rounded-md border border-black/10 bg-white px-2 py-1 text-sm text-black dark:border-white/20 dark:bg-zinc-800 dark:text-white"
+      className="w-full min-w-0 rounded-md border border-black/10 bg-white px-2 py-1 text-sm text-black dark:border-white/20 dark:bg-zinc-800 dark:text-white"
     >
       {STATUSES.map((s) => (
-        <option key={s} value={s}>
+        // "Applied" can't be manually selected — it only gets set once a
+        // real confirmation email is found via Gmail. Still shown (and
+        // still the visible value) for an application that's already
+        // there, just not something you can switch into from here.
+        <option key={s} value={s} disabled={s === "applied" && status !== "applied"}>
           {s}
         </option>
       ))}

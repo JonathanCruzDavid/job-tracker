@@ -6,11 +6,16 @@ import InlineField from "@/components/InlineField";
 import ApplicationTimeline from "@/components/ApplicationTimeline";
 import TailoredResumePreview from "@/components/TailoredResumePreview";
 import DeleteApplicationButton from "@/components/DeleteApplicationButton";
+import CheckLegitimacyButton from "@/components/CheckLegitimacyButton";
+import GmailFindingsInline from "@/components/GmailFindingsInline";
+import { getUndismissedFindingsForApplication } from "@/lib/gmail/emailReviews";
+import { isGhosted, GHOSTED_AFTER_DAYS } from "@/lib/applications/ghosted";
 
 export const dynamic = "force-dynamic";
 
 type ApplicationDetailRow = {
   id: string;
+  job_posting_id: string;
   status: string;
   notes: string | null;
   interview_stage: string | null;
@@ -27,6 +32,10 @@ type ApplicationDetailRow = {
   gaps: string | null;
   improvement_tips: string | null;
   summary: string | null;
+  scam_verdict: string | null;
+  scam_risk_score: number | null;
+  scam_red_flags: string | null;
+  scam_reasoning: string | null;
 };
 
 function sourceLabel(row: ApplicationDetailRow): string {
@@ -53,8 +62,9 @@ export default async function ApplicationDetailPage({
 
   const application = db
     .prepare(
-      `select a.id, a.status, a.notes, a.interview_stage,
+      `select a.id, a.job_posting_id, a.status, a.notes, a.interview_stage,
               jp.title, jp.company, jp.location, jp.url, jp.description, jp.source, jp.source_site,
+              jp.scam_verdict, jp.scam_risk_score, jp.scam_red_flags, jp.scam_reasoning,
               (
                 select e.created_at from application_events e
                 where e.application_id = a.id and e.event_type = 'status_change' and e.to_status = 'applied'
@@ -79,6 +89,8 @@ export default async function ApplicationDetailPage({
     )
     .all(id) as EventRow[];
 
+  const gmailFindings = getUndismissedFindingsForApplication(id);
+
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-12">
       <div className="mb-6 flex items-start justify-between gap-4">
@@ -97,17 +109,21 @@ export default async function ApplicationDetailPage({
             <p className="mt-1 text-xs text-black/50 dark:text-white/50">
               Applied {new Date(application.applied_at).toLocaleDateString()} via{" "}
               {sourceLabel(application)}
+              {isGhosted(application.status, application.applied_at) && (
+                <span className="ml-2 rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-black/60 dark:bg-white/10 dark:text-white/60">
+                  👻 No response in {GHOSTED_AFTER_DAYS / 7}+ weeks
+                </span>
+              )}
             </p>
           )}
         </div>
         <div className="flex flex-shrink-0 flex-col items-end gap-2">
           <StatusDropdown applicationId={application.id} status={application.status} />
-          <DeleteApplicationButton
-            applicationId={application.id}
-            redirectTo={application.status === "saved" ? "/saved" : "/applications"}
-          />
+          <DeleteApplicationButton applicationId={application.id} redirectTo="/applications" />
         </div>
       </div>
+
+      <GmailFindingsInline applicationId={application.id} findings={gmailFindings} />
 
       {application.description && (
         <section className="mb-8">
@@ -121,6 +137,19 @@ export default async function ApplicationDetailPage({
           </div>
         </section>
       )}
+
+      <section className="mb-8">
+        <h2 className="mb-2 text-sm font-medium text-black/60 dark:text-white/60">
+          Is this company legit?
+        </h2>
+        <CheckLegitimacyButton
+          jobPostingId={application.job_posting_id}
+          verdict={application.scam_verdict}
+          riskScore={application.scam_risk_score}
+          redFlags={fromJson<string[]>(application.scam_red_flags, [])}
+          reasoning={application.scam_reasoning}
+        />
+      </section>
 
       {application.score !== null && (
         <section className="mb-8 rounded-md border border-black/10 p-4 dark:border-white/20">
